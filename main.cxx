@@ -100,7 +100,7 @@ int main(int argc, char **argv)
             tm time;
             memset(&time, '\0', sizeof(time));
             const char * format = strptime(line.c_str(), timeFormatter.c_str(), &time);
-            // Determine timezone automatically
+            // Determine DST automatically
             time.tm_isdst = -1;
 
             // Skip the line if the format is not found

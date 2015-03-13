@@ -100,6 +100,8 @@ int main(int argc, char **argv)
             tm time;
             memset(&time, '\0', sizeof(time));
             const char * format = strptime(line.c_str(), timeFormatter.c_str(), &time);
+            // Determine timezone automatically
+            time.tm_isdst = -1;
 
             // Skip the line if the format is not found
             if (format)
@@ -187,7 +189,7 @@ int main(int argc, char **argv)
         char buffer[1024];
         for (std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> >::iterator it = slices.begin(); it != slices.end(); ++it)
         {
-            size_t size = strftime(buffer, 1024, "%F %T", gmtime(&it->first));
+            size_t size = strftime(buffer, 1024, "%F %T", localtime(&it->first));
             if (size)
             {
                 std::cout.write(buffer, size);

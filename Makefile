@@ -1,11 +1,11 @@
-build = Debug
+build = Release
 objects = main.o
-CC = clang
-CXX = clang++
+CC = g
+CXX = g++
 
-commonOptsAll = -Wall -Wextra -std=c++11
+commonOptsAll = -Wall -Wextra
 commonDebugOpts = -ggdb -O0 -DDEBUG
-commonReleaseOpts = -s -O3 -march=native
+commonReleaseOpts = -s -O3
 commonOpts = $(commonOptsAll) $(common$(build)Opts)
 
 compileOptsAll = -c
@@ -13,7 +13,7 @@ compileOptsRelease =
 compileOptsDebug =
 compileOpts = $(commonOpts) $(compileOptsAll) $(compileOpts$(build))
 
-linkerOptsAll =
+linkerOptsAll = -static-libgcc -static-libstdc++
 linkerOptsRelease =
 linkerOptsDebug =
 linkerOpts = $(commonOpts) $(linkerOptsAll) $(linkerOpts$(build))
@@ -32,5 +32,5 @@ clean :
 logan : $(objects)
 	$(link) -o logan $(objects)
 
-main.o : main.cxx
+main.o : main.cxx distance.hxx
 	$(compile) -o main.o main.cxx 

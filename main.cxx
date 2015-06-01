@@ -5,6 +5,7 @@
 #include <map>
 #include <ctime>
 #include <stdint.h>
+#include <unistd.h>
 #include <cstring>
 
 #include "distance.hxx"
@@ -20,16 +21,6 @@ inline std::string Replace(const std::string &input, const std::string &target, 
 
 int main(int argc, char **argv)
 {
-    if (argc > 1)
-    {
-        std::string arg(argv[1]);
-        if (arg[0] == 'h' || arg[0] == 'H' || arg == "--help" || arg == "-h" || arg == "-?" || arg == "--usage")
-        {
-            Usage(argv[0]);
-            return 1;
-        }
-    }
-
     // Time Slice in seconds
     time_t timeSliceSize = 30 * 60;
 
@@ -42,37 +33,54 @@ int main(int argc, char **argv)
     // Dummy elements
     uint_fast16_t dummyElements = 2;
 
-    char cutoff = '\0';
-
-    if (argc > 1)
+    int opt;
+    while ((opt = getopt(argc, argv, "hs:p:f:d:")) != -1)
     {
-        std::istringstream ss(argv[1]);
-        double sliceSize;
-        ss >> sliceSize;
-        // minutes -> seconds
-        timeSliceSize = static_cast<uint_fast32_t>(sliceSize * 60.0);
-    }
+        switch (opt)
+        {
+            case 'h':
+                {
+                    Usage(argv[0]);
+                    return 0;
+                    break;
+                }
 
-    if (argc > 2)
-    {
-        std::istringstream ss(argv[2]);
-        ss >> pct;
-    }
+            case 's':
+                {
+                    std::istringstream ss(optarg);
+                    double sliceSize;
+                    ss >> sliceSize;
+                    // minutes -> seconds
+                    timeSliceSize = static_cast<uint_fast32_t>(sliceSize * 60.0);
+                    break;
+                }
 
-    if (argc > 3)
-    {
-        timeFormatter.assign(argv[3]);
-    }
+            case 'p':
+                {
+                    std::istringstream ss(optarg);
+                    ss >> pct;
+                    break;
+                }
 
-    if (argc > 4)
-    {
-        std::istringstream ss(argv[4]);
-        ss >> dummyElements;
-    }
+            case 'f':
+                {
+                    timeFormatter.assign(optarg);
+                    break;
+                }
 
-    if (argc > 5)
-    {
-        cutoff = argv[5][0];
+            case 'd':
+                {
+                    std::istringstream ss(optarg);
+                    ss >> dummyElements;
+                    break;
+                }
+
+            case '?':
+                {
+                    Usage(argv[0]);
+                    return (1);
+                }
+        }
     }
 
     if (std::cin)
@@ -125,16 +133,8 @@ int main(int argc, char **argv)
 
                 //std::istringstream contentSS(format);
                 std::istringstream contentSS;
-                if (cutoff == '\0')
-                {
-                    contentSS.str(format);
-                } else
-                {
-                    std::istringstream content(format);
-                    std::string contentString;
-                    std::getline(content, contentString, cutoff);
-                    contentSS.str(contentString);
-                }
+
+                contentSS.str(format);
 
                 std::string dummy;
 
@@ -216,15 +216,16 @@ int main(int argc, char **argv)
 void Usage(const std::string &progName)
 {
     std::cout << "USAGE:" << '\n'
-        << '\t' << progName << " [{slice size in minutes}] [{pct match required}] [{time formatter for timestamp}] [{count of dummy elements between timestamp and message}] [ending char]" << '\n'
-        << "\t\t" << "Analize a log by time slices and its percent matching required in its timestamps" << '\n'
-        << "\t\t" << "Logfile taken in through stdin (can be concatenated)" << '\n'
-        << "\t\t" << "Default slice size is 30 minutes" << '\n'
-        << "\t\t" << "Default pct match is 80% (done by words)." << '\n'
-        << "\t\t" << "Default time formatter is \"%F %T\"" << '\n'
-        << "\t\t" << "Default dummy elements is 2" << '\n'
-        << "\t\t" << "Ending char defines a cutoff for messages.  null is default and disables cutoff." << '\n'
-        << "\t\t" << "Outputs csv to standard output." << std::endl;
+        << '\t' << progName << " [options...]" << '\n'
+        << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
+        << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
+        << "\t\t-f [format]\t" << "Time formatter. Default is \"%F %T\"" << '\n'
+        << "\t\t-d ##\t" << "Dummy elements to skip between timestamp and message. Default is 2" << '\n'
+        << "\t\t-h\t" << "Show this help menu." << '\n'
+        << '\n'
+        << "\t\t" << "Takes messages from standard input (order is unimportant)." << '\n'
+        << "\t\t" << "Outputs csv to standard output." << '\n'
+        << "\t\t" << "This expects to find the timestamp first.  If it is not first, use sed/awk or something to fix it." << std::endl;
 }
 
 template <typename T>

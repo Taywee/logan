@@ -26,6 +26,7 @@
 *.exe
 *.out
 *.app
+logan
 
 # Temp files
 *.sw?

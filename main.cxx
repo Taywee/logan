@@ -157,14 +157,34 @@ int main(int argc, char **argv)
                 double closestMatch = 0.0;
                 uint_fast32_t matchIndex = 0;
 
+                // Iterate through existing messages
                 for (uint_fast32_t i = 0; i < messages.size(); ++i)
                 {
-                    const uint_fast32_t distance = edit_distance(messages[i], contentVec);
-                    if (distance < leastDistance)
+                    // If we aren't checking for exact equality
+                    if (pct < 0.99)
                     {
-                        leastDistance = distance;
-                        closestMatch = 1.0 - (static_cast<double>(distance) / static_cast<double>(contentVec.size()));
-                        matchIndex = i;
+                        // Compute the edit distance
+                        const uint_fast32_t distance = edit_distance(messages[i], contentVec);
+
+                        // Iteratively try to find the closest match.  This unfortunately involves iterating through all messages
+                        if (distance < leastDistance)
+                        {
+                            leastDistance = distance;
+                            closestMatch = 1.0 - (static_cast<double>(distance) / static_cast<double>(contentVec.size()));
+                            matchIndex = i;
+                        }
+                    } else
+                    {
+                        // If we're looking for equality, we just need equality
+                        if (messages[i] == contentVec)
+                        {
+                            // Set closestMatch to be pct to instantly pass the later check
+                            closestMatch = pct;
+                            matchIndex = i;
+
+                            // Because we need equality, the first match is good enough
+                            break;
+                        }
                     }
                 }
 

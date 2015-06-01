@@ -13,7 +13,7 @@ compileOptsRelease =
 compileOptsDebug =
 compileOpts = $(commonOpts) $(compileOptsAll) $(compileOpts$(build))
 
-linkerOptsAll = -static-libgcc -static-libstdc++
+linkerOptsAll =
 linkerOptsRelease =
 linkerOptsDebug =
 linkerOpts = $(commonOpts) $(linkerOptsAll) $(linkerOpts$(build))

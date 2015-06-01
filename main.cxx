@@ -2,6 +2,7 @@
 #include <sstream>
 #include <fstream>
 #include <string>
+#include <vector>
 #include <map>
 #include <ctime>
 #include <stdint.h>
@@ -18,6 +19,10 @@ inline std::string Join(const T &container, const std::string separator);
 
 // Replaces target with replacement in input 
 inline std::string Replace(const std::string &input, const std::string &target, const std::string &replacement);
+
+inline size_t Hash(const std::string &string);
+
+inline size_t Hash(const std::vector<std::string>& vec);
 
 int main(int argc, char **argv)
 {
@@ -87,6 +92,9 @@ int main(int argc, char **argv)
     {
         // List of messages collected so far
         std::vector<std::vector<std::string> > messages;
+        // Hashes of messages collected, if looking for exact matches
+        std::vector<size_t> hashes;
+
         // Map of timeslice -> {map of index -> occurrences}
         std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > slices;
 
@@ -156,6 +164,7 @@ int main(int argc, char **argv)
                 uint_fast16_t leastDistance = contentVec.size();
                 double closestMatch = 0.0;
                 uint_fast32_t matchIndex = 0;
+                size_t contentHash = Hash(contentVec);
 
                 // Iterate through existing messages
                 for (uint_fast32_t i = 0; i < messages.size(); ++i)
@@ -176,7 +185,7 @@ int main(int argc, char **argv)
                     } else
                     {
                         // If we're looking for equality, we just need equality
-                        if (messages[i] == contentVec)
+                        if (hashes[i] == contentHash)
                         {
                             // Set closestMatch to be pct to instantly pass the later check
                             closestMatch = pct;
@@ -195,6 +204,7 @@ int main(int argc, char **argv)
                 {
                     slices[currentSlice][messages.size()] += 1;
                     messages.push_back(contentVec);
+                    hashes.push_back(Hash(contentVec));
                 }
             }
         }
@@ -263,7 +273,7 @@ std::string Join(const T &container, const std::string separator)
     return oss.str();
 }
 
-inline std::string Replace(const std::string &input, const std::string &target, const std::string &replacement)
+std::string Replace(const std::string &input, const std::string &target, const std::string &replacement)
 {
     std::string output(input);
     size_t pos = 0;
@@ -273,4 +283,24 @@ inline std::string Replace(const std::string &input, const std::string &target, 
         pos += replacement.length();
     }
     return output;
+}
+
+size_t Hash(const std::string& string)
+{
+    size_t hash = 0;
+    for (uint_fast32_t i = 0; i < string.size(); ++i)
+    {
+        hash = string[i] + (hash << 6) + (hash << 16) - hash;
+    }
+    return hash;
+}
+
+size_t Hash(const std::vector<std::string>& vec)
+{
+    size_t seed = 0;
+    for (uint_fast32_t i = 0; i < vec.size(); ++i)
+    {
+        seed ^= Hash(vec[i]) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+    }
+    return seed;
 }

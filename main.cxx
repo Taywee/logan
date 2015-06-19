@@ -45,9 +45,10 @@ int main(int argc, char **argv)
 
     // Dummy elements
     uint_fast16_t dummyElements = 2;
+    uint_fast32_t minimum = 1;
 
     int opt;
-    while ((opt = getopt(argc, argv, "hs:o:p:f:d:")) != -1)
+    while ((opt = getopt(argc, argv, "hs:o:p:f:d:m:")) != -1)
     {
         switch (opt)
         {
@@ -65,6 +66,13 @@ int main(int argc, char **argv)
                     ss >> sliceSize;
                     // minutes -> seconds
                     timeSliceSize = static_cast<uint_fast32_t>(sliceSize * 60.0);
+                    break;
+                }
+
+            case 'm':
+                {
+                    std::istringstream ss(optarg);
+                    ss >> minimum;
                     break;
                 }
 
@@ -284,7 +292,7 @@ int main(int argc, char **argv)
 
                     for (uint_fast32_t i = 0; i < messages.size(); ++i)
                     {
-                        if (slice[i] > 0)
+                        if (slice[i] >= minimum)
                         {
                             std::vector<std::string> &message = messages[i];
                             std::cout << Join(message, " ") << ":\n";
@@ -311,6 +319,7 @@ void Usage(const std::string &progName)
         << '\t' << progName << " [options...]" << '\n'
         << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
         << "\t\t-o [type]\t" << "Output type.  CSV is default.  Options: Report, CSV" << '\n'
+        << "\t\t-m [minimum]\t" << "Minimum for reporting.  Default is 1." << '\n'
         << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
         << "\t\t-f [format]\t" << "Time formatter. Default is \"%F %T\"" << '\n'
         << "\t\t-d ##\t" << "Dummy elements to skip between timestamp and message. Default is 2" << '\n'

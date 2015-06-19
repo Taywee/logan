@@ -290,15 +290,20 @@ int main(int argc, char **argv)
 
                     std::map<uint_fast16_t, uint_fast32_t> &slice = slices[latestSlice];
 
+                    uint_fast32_t total = 0;
                     for (uint_fast32_t i = 0; i < messages.size(); ++i)
                     {
                         if (slice[i] >= minimum)
                         {
+                            total += slice[i];
                             std::vector<std::string> &message = messages[i];
                             std::cout << Join(message, " ") << ":\n";
                             std::cout << "\t" << slice[i] << "\n\n";
                         }
                     }
+
+                    std::cout << "TOTAL:\n";
+                    std::cout << "\t" << total << std::endl;
 
                     break;
                 }

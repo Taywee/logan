@@ -284,9 +284,12 @@ int main(int argc, char **argv)
 
                     for (uint_fast32_t i = 0; i < messages.size(); ++i)
                     {
-                        std::vector<std::string> &message = messages[i];
-                        std::cout << Join(message, " ") << ":\n";
-                        std::cout << "\t" << slice[i] << "\n\n";
+                        if (slice[i] > 0)
+                        {
+                            std::vector<std::string> &message = messages[i];
+                            std::cout << Join(message, " ") << ":\n";
+                            std::cout << "\t" << slice[i] << "\n\n";
+                        }
                     }
 
                     break;

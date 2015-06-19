@@ -274,7 +274,11 @@ int main(int argc, char **argv)
                 {
                     char buffer[1024];
                     size_t size = strftime(buffer, 1024, "%F %T", localtime(&latestSlice));
-                    std::cout << "Time: " << std::string(buffer, size) << "\n\n";
+                    std::cout << "Time starting: " << std::string(buffer, size) << "\n";
+
+                    time_t endTime = latestSlice + timeSliceSize;
+                    size = strftime(buffer, 1024, "%F %T", localtime(&endTime));
+                    std::cout << "Time ending: " << std::string(buffer, size) << "\n\n";
 
                     std::map<uint_fast16_t, uint_fast32_t> &slice = slices[latestSlice];
 

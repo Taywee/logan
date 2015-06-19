@@ -24,8 +24,16 @@ inline size_t Hash(const std::string &string);
 
 inline size_t Hash(const std::vector<std::string>& vec);
 
+enum Output
+{
+    CSV,
+    REPORT
+};
+
 int main(int argc, char **argv)
 {
+    Output output = CSV;
+
     // Time Slice in seconds
     time_t timeSliceSize = 30 * 60;
 
@@ -39,7 +47,7 @@ int main(int argc, char **argv)
     uint_fast16_t dummyElements = 2;
 
     int opt;
-    while ((opt = getopt(argc, argv, "hs:p:f:d:")) != -1)
+    while ((opt = getopt(argc, argv, "hs:o:p:f:d:")) != -1)
     {
         switch (opt)
         {
@@ -57,6 +65,27 @@ int main(int argc, char **argv)
                     ss >> sliceSize;
                     // minutes -> seconds
                     timeSliceSize = static_cast<uint_fast32_t>(sliceSize * 60.0);
+                    break;
+                }
+
+            case 'o':
+                {
+                    if (strlen(optarg) > 0)
+                    {
+                        switch (tolower(optarg[0]))
+                        {
+                            case 'r':
+                                {
+                                    output = REPORT;
+                                    break;
+                                }
+                            case 'c':
+                                {
+                                    output = CSV;
+                                    break;
+                                }
+                        }
+                    }
                     break;
                 }
 
@@ -98,7 +127,8 @@ int main(int argc, char **argv)
         // Map of timeslice -> {map of index -> occurrences}
         std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > slices;
 
-        time_t currentSlice = 0.0;
+        time_t currentSlice = time(NULL);
+        time_t latestSlice = currentSlice - timeSliceSize;
 
         uint_fast64_t lineNum = 0;
         while (!(std::cin.eof() || std::cin.fail()))
@@ -208,30 +238,55 @@ int main(int argc, char **argv)
                 }
             }
         }
-        // Output messages
-        std::cout << "Time";
-        for (uint_fast32_t i = 0; i < messages.size(); ++i)
+
+        switch (output)
         {
-            std::vector<std::string> &message = messages[i];
-            std::cout << ",\"" << Replace(Join(message, " "), "\"", "\"\"") << "\"";
-        }
-        std::cout << '\n';
-        char buffer[1024];
-        for (std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> >::iterator it = slices.begin(); it != slices.end(); ++it)
-        {
-            size_t size = strftime(buffer, 1024, "%F %T", localtime(&it->first));
-            if (size)
-            {
-                std::cout.write(buffer, size);
-            } else
-            {
-                std::cout.write(buffer, 1024);
-            }
-            for (uint_fast32_t i = 0; i < messages.size(); ++i)
-            {
-                std::cout << ',' << it->second[i];
-            }
-            std::cout << '\n';
+            case CSV:
+                {
+                    std::cout << "Time";
+                    for (uint_fast32_t i = 0; i < messages.size(); ++i)
+                    {
+                        std::vector<std::string> &message = messages[i];
+                        std::cout << ",\"" << Replace(Join(message, " "), "\"", "\"\"") << "\"";
+                    }
+                    std::cout << '\n';
+                    char buffer[1024];
+                    for (std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> >::iterator it = slices.begin(); it != slices.end(); ++it)
+                    {
+                        size_t size = strftime(buffer, 1024, "%F %T", localtime(&it->first));
+                        if (size)
+                        {
+                            std::cout.write(buffer, size);
+                        } else
+                        {
+                            std::cout.write(buffer, 1024);
+                        }
+                        for (uint_fast32_t i = 0; i < messages.size(); ++i)
+                        {
+                            std::cout << ',' << it->second[i];
+                        }
+                        std::cout << '\n';
+                    }
+                    break;
+                }
+
+            case REPORT:
+                {
+                    char buffer[1024];
+                    size_t size = strftime(buffer, 1024, "%F %T", localtime(&latestSlice));
+                    std::cout << "Time: " << std::string(buffer, size) << "\n\n";
+
+                    std::map<uint_fast16_t, uint_fast32_t> &slice = slices[latestSlice];
+
+                    for (uint_fast32_t i = 0; i < messages.size(); ++i)
+                    {
+                        std::vector<std::string> &message = messages[i];
+                        std::cout << Join(message, " ") << ":\n";
+                        std::cout << "\t" << slice[i] << "\n\n";
+                    }
+
+                    break;
+                }
         }
     } else
     {
@@ -248,6 +303,7 @@ void Usage(const std::string &progName)
     std::cout << "USAGE:" << '\n'
         << '\t' << progName << " [options...]" << '\n'
         << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
+        << "\t\t-o [type]\t" << "Output type.  CSV is default.  Options: Report, CSV" << '\n'
         << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
         << "\t\t-f [format]\t" << "Time formatter. Default is \"%F %T\"" << '\n'
         << "\t\t-d ##\t" << "Dummy elements to skip between timestamp and message. Default is 2" << '\n'

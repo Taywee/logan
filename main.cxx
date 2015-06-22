@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <cstring>
+#include <pcre.h>
 
 #include "distance.hxx"
 
@@ -48,7 +49,7 @@ int main(int argc, char **argv)
     uint_fast32_t minimum = 1;
 
     int opt;
-    while ((opt = getopt(argc, argv, "hs:o:p:f:d:m:")) != -1)
+    while ((opt = getopt(argc, argv, "hs:o:p:f:d:m:r:R:")) != -1)
     {
         switch (opt)
         {
@@ -324,10 +325,11 @@ void Usage(const std::string &progName)
         << '\t' << progName << " [options...]" << '\n'
         << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
         << "\t\t-o [type]\t" << "Output type.  CSV is default.  Options: Report, CSV" << '\n'
-        << "\t\t-m [minimum]\t" << "Minimum for reporting.  Default is 1." << '\n'
+        << "\t\t-m [minimum]\t" << "Minimum matches needed for Report.  Default is 1." << '\n'
         << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
         << "\t\t-f [format]\t" << "Time formatter. Default is \"%F %T\"" << '\n'
-        << "\t\t-d ##\t" << "Dummy elements to skip between timestamp and message. Default is 2" << '\n'
+        << "\t\t-r [pattern]\t" << "Regex pattern, used in conjunction with -R to warp input to a proper format" << '\n'
+        << "\t\t-R [replace]\t" << "Regex replacement, \\\\ is a literal backslash, and \\# with the real numbers match capture groups" << '\n'
         << "\t\t-h\t" << "Show this help menu." << '\n'
         << '\n'
         << "\t\t" << "Takes messages from standard input (order is unimportant)." << '\n'

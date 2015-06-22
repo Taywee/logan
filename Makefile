@@ -3,20 +3,20 @@ objects = main.o
 CC = g
 CXX = g++
 
-commonOptsAll = -Wall -Wextra
 commonDebugOpts = -ggdb -O0 -DDEBUG
 commonReleaseOpts = -s -O3
-commonOpts = $(commonOptsAll) $(common$(build)Opts)
+commonOpts = -Wall -Wextra
+commonOpts += $(commonOptsAll) $(common$(build)Opts)
 
-compileOptsAll = -c
 compileOptsRelease =
 compileOptsDebug =
-compileOpts = $(commonOpts) $(compileOptsAll) $(compileOpts$(build))
+compileOpts = -c `pcre-config --cflags`
+compileOpts += $(commonOpts) $(compileOptsAll) $(compileOpts$(build))
 
-linkerOptsAll =
 linkerOptsRelease =
 linkerOptsDebug =
-linkerOpts = $(commonOpts) $(linkerOptsAll) $(linkerOpts$(build))
+linkerOpts = /usr/lib/libpcre.a
+linkerOpts += $(commonOpts) $(linkerOptsAll) $(linkerOpts$(build))
 
 compile = $(CXX) $(compileOpts)
 link = $(CXX) $(linkerOpts)

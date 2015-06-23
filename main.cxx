@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include <ctime>
+#include <cctype>
 #include <stdint.h>
 #include <cstdlib>
 #include <unistd.h>
@@ -27,7 +28,7 @@ inline size_t Hash(const std::string &string);
 
 inline size_t Hash(const std::vector<std::string>& vec);
 
-inline void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> &ovector, const std::vector<std::string> &replaceparts, const std::vector<long> &replacerefs, time_t &currentSlice, const time_t timeSliceSize, std::vector<size_t> &hashes, std::vector<std::vector<std::string> > &messages, std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > &slices, const std::string &timeFormatter, double pct);
+inline void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> &ovector, const std::vector<std::string> &replaceparts, const std::vector<long> &replacerefs, time_t &currentSlice, const time_t timeSliceSize, time_t &latestSlice, std::vector<size_t> &hashes, std::vector<std::vector<std::string> > &messages, std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > &slices, const std::string &timeFormatter, double pct);
 
 enum Output
 {
@@ -142,58 +143,58 @@ int main(int argc, char **argv)
     std::vector<std::string> replaceparts;
     std::vector<long> replacerefs;
 
-    int erroffset;
-    const char *error;
-
     // Break down the replace string into a quickly-buildable representation for output
+    size_t pos = 0;
+    while (pos < replacePattern.size())
     {
-        std::string capturePattern = "\\$\\{(\\d+)\\}";
-        pcre *re = pcre_compile(capturePattern.c_str(), 0, &error, &erroffset, NULL);
-        int ovector[6];
-
-        // If the capture pattern is found in the replace data
-        while (pcre_exec(re, NULL, replacePattern.data(), replacePattern.length(), 0, 0, ovector, 6) > 0)
+        size_t loc = replacePattern.find('$', pos);
+        if (loc == replacePattern.npos)
         {
-            // Extract the number from the capture
-            std::string number(replacePattern.substr(ovector[2], ovector[3] - ovector[2]));
-            replacerefs.push_back(std::strtol(number.c_str(), NULL, 10));
-
-            // Push back the first part of the string
-            replaceparts.push_back(replacePattern.substr(0, ovector[0]));
-            // Erase Everything up to and including the pattern place.
-            replacePattern.erase(0, ovector[1]);
-        }
-        // Everything left of replace is the tail.
-        replaceparts.push_back(replacePattern);
-        pcre_free(re);
-    }
-
-    // Replace all dollar sign escapes
-    for (std::vector<std::string>::iterator it = replaceparts.begin(); it != replaceparts.end(); ++it)
-    {
-        std::string &replacepart = *it;
-
-        size_t pos = 0;
-        while (pos < replacepart.size())
+            break;
+        } else
         {
-            size_t loc = replacepart.find('$', pos);
-            if (loc == replacepart.npos)
+            // Replace dollar sign escapes
+            if (((loc + 1) < replacePattern.size()) && (replacePattern.at(loc + 1) == '$'))
             {
-                break;
-            } else
+                replacePattern.erase(loc, 1);
+                pos = loc + 1;
+            } else if (((loc + 2) < replacePattern.size()) && (replacePattern.at(loc + 1) == '{') && isdigit(replacePattern.at(loc + 2)))
             {
-                if (((loc + 1) < replacepart.size()) && (replacepart.at(loc + 1) == '$'))
+                // Replace captures
+                const size_t numberloc = loc + 2;
+                const size_t rightbrace = replacePattern.find('}', numberloc);
+                if (rightbrace == replacePattern.npos)
                 {
-                    replacepart.erase(loc, 1);
-                    pos = loc + 1;
-                } else
-                {
-                    std::cerr << "Replace is wrong.  All dollar signs should only escape a capture replace or another dollar sign" << std::endl;
+                    std::cerr << "Replace is wrong.  Open brace on capture needs closing brace." << std::endl;
                     return 1;
                 }
+
+                std::string number(replacePattern.substr(numberloc, rightbrace - numberloc));
+                if (number.find_first_not_of("0123456789") != number.npos)
+                {
+                    std::cerr << "Replace is wrong.  Inserted capture should only be specified by digits." << std::endl;
+                    return 1;
+                }
+
+                replacerefs.push_back(std::strtol(number.c_str(), NULL, 10));
+
+                // Push back the first part of the string
+                replaceparts.push_back(replacePattern.substr(0, loc));
+                // Erase Everything up to and including the pattern place.
+                replacePattern.erase(0, rightbrace + 1);
+
+                pos = 0;
+            } else
+            {
+                std::cerr << "Replace is wrong.  All dollar signs should only escape a capture replace or another dollar sign" << std::endl;
+                return 1;
             }
         }
     }
+    replaceparts.push_back(replacePattern);
+    
+    int erroffset;
+    const char *error;
 
     // Compile match pattern
     pcre *re = pcre_compile(matchPattern.c_str(), 0, &error, &erroffset, NULL);
@@ -229,7 +230,7 @@ int main(int argc, char **argv)
     std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > slices;
 
     time_t currentSlice = time(NULL);
-    time_t latestSlice = currentSlice - timeSliceSize;
+    time_t latestSlice = 0;
 
     uint_fast64_t lineNum = 0;
     std::string line;
@@ -245,7 +246,7 @@ int main(int argc, char **argv)
             }
             ++lineNum;
 
-            CheckLine(re, study, line, ovector, replaceparts, replacerefs, currentSlice, timeSliceSize, hashes, messages, slices, timeFormatter, pct);
+            CheckLine(re, study, line, ovector, replaceparts, replacerefs, currentSlice, timeSliceSize, latestSlice, hashes, messages, slices, timeFormatter, pct);
         }
     } else
     {
@@ -264,7 +265,7 @@ int main(int argc, char **argv)
                     }
                     ++lineNum;
 
-                    CheckLine(re, study, line, ovector, replaceparts, replacerefs, currentSlice, timeSliceSize, hashes, messages, slices, timeFormatter, pct);
+                    CheckLine(re, study, line, ovector, replaceparts, replacerefs, currentSlice, timeSliceSize, latestSlice, hashes, messages, slices, timeFormatter, pct);
                 }
             } else
             {
@@ -420,7 +421,7 @@ size_t Hash(const std::vector<std::string>& vec)
     return seed;
 }
 
-void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> &ovector, const std::vector<std::string> &replaceparts, const std::vector<long> &replacerefs, time_t &currentSlice, const time_t timeSliceSize, std::vector<size_t> &hashes, std::vector<std::vector<std::string> > &messages, std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > &slices, const std::string &timeFormatter, double pct)
+void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> &ovector, const std::vector<std::string> &replaceparts, const std::vector<long> &replacerefs, time_t &currentSlice, const time_t timeSliceSize, time_t &latestSlice, std::vector<size_t> &hashes, std::vector<std::vector<std::string> > &messages, std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > &slices, const std::string &timeFormatter, double pct)
 {
     // Try to match the pattern.  If it's found, do the replace.
     int rc = pcre_exec(re, study, line.data(), line.length(), 0, 0, ovector.data(), ovector.size());
@@ -467,6 +468,11 @@ void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> 
             while ((timestamp - currentSlice) >= timeSliceSize)
             {
                 currentSlice += timeSliceSize;
+            }
+
+            if (latestSlice < currentSlice)
+            {
+                latestSlice = currentSlice;
             }
         }
 

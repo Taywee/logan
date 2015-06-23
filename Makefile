@@ -30,7 +30,7 @@ clean :
 	-rm -v logan $(objects)
 
 logan : $(objects)
-	$(link) -o logan $(objects)
+	$(CXX) -o logan $(objects) $(linkerOpts)
 
 main.o : main.cxx distance.hxx
 	$(compile) -o main.o main.cxx 

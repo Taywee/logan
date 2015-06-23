@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -25,6 +26,8 @@ inline std::string Replace(const std::string &input, const std::string &target, 
 inline size_t Hash(const std::string &string);
 
 inline size_t Hash(const std::vector<std::string>& vec);
+
+inline void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> &ovector, const std::vector<std::string> &replaceparts, const std::vector<long> &replacerefs, time_t &currentSlice, const time_t timeSliceSize, std::vector<size_t> &hashes, std::vector<std::vector<std::string> > &messages, std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > &slices, const std::string &timeFormatter, double pct);
 
 enum Output
 {
@@ -210,7 +213,7 @@ int main(int argc, char **argv)
     }
 
     int captures;
-    int rc = pcre_fullinfo(re, study, PCRE_INFO_CAPTURECOUNT, &captures);
+    pcre_fullinfo(re, study, PCRE_INFO_CAPTURECOUNT, &captures);
     
     // Allocate data for substring storage.
     // Each pair of subsequent ints are bounds for a beginning and end of
@@ -230,123 +233,48 @@ int main(int argc, char **argv)
 
     uint_fast64_t lineNum = 0;
     std::string line;
-    while (std::getline(std::cin, line))
+
+    // If files are not given, process stdin
+    if (optind >= argc)
     {
-        if (lineNum % 10000 == 0)
+        while (std::getline(std::cin, line))
         {
-            std::cerr << "Processing line number " << lineNum << std::endl;
-        }
-        ++lineNum;
-
-        // Try to match the pattern.  If it's found, do the replace.
-        rc = pcre_exec(re, study, line.data(), line.length(), 0, 0, ovector.data(), ovector.size());
-        if (rc > 0)
-        {
-            std::stringstream lineBuild;
-
-            for (unsigned int i = 0; i < replacerefs.size(); ++i)
+            if (lineNum % 10000 == 0)
             {
-                const int replaceref = replacerefs[i];
-
-                // Ovector is interleaved in pairs
-                const int start = ovector[replaceref * 2];
-                const int end = ovector[(replaceref * 2) + 1];
-
-                lineBuild << replaceparts[i] << line.substr(start, end - start);
+                std::cerr << "Processing line number " << lineNum << std::endl;
             }
+            ++lineNum;
 
-            lineBuild << replaceparts.back();
-            line.assign(lineBuild.str());
+            CheckLine(re, study, line, ovector, replaceparts, replacerefs, currentSlice, timeSliceSize, hashes, messages, slices, timeFormatter, pct);
         }
+    } else
+    {
 
-        // Rip the format off the beginning
-        tm time;
-        memset(&time, '\0', sizeof(time));
-        const char * format = strptime(line.c_str(), timeFormatter.c_str(), &time);
-        // Determine DST automatically
-        time.tm_isdst = -1;
-
-        // Skip the line if the format is not found
-        if (format)
+        for (int i = optind; i < argc; ++i)
         {
-            const time_t timestamp = mktime(&time);
-
-            if (currentSlice == 0.0)
+            std::string filename = argv[i];
+            std::ifstream file(filename.c_str());
+            if (file)
             {
-                currentSlice = timestamp;
+                while (std::getline(file, line))
+                {
+                    if (lineNum % 10000 == 0)
+                    {
+                        std::cerr << "Processing line number " << lineNum << std::endl;
+                    }
+                    ++lineNum;
+
+                    CheckLine(re, study, line, ovector, replaceparts, replacerefs, currentSlice, timeSliceSize, hashes, messages, slices, timeFormatter, pct);
+                }
             } else
             {
-                while (timestamp < currentSlice)
-                {
-                    currentSlice -= timeSliceSize;
-                }
-                while ((timestamp - currentSlice) >= timeSliceSize)
-                {
-                    currentSlice += timeSliceSize;
-                }
-            }
-
-            //std::istringstream contentSS(format);
-            std::istringstream contentSS;
-
-            contentSS.str(format);
-
-            // Break down contentVec into its parts
-            std::vector<std::string> contentVec;
-            while (!contentSS.eof())
-            {
-                std::string item;
-                contentSS >> item;
-                contentVec.push_back(item);
-            }
-
-            uint_fast16_t leastDistance = contentVec.size();
-            double closestMatch = 0.0;
-            uint_fast32_t matchIndex = 0;
-            size_t contentHash = Hash(contentVec);
-
-            // Iterate through existing messages
-            for (uint_fast32_t i = 0; i < messages.size(); ++i)
-            {
-                // If we aren't checking for exact equality
-                if (pct < 0.99)
-                {
-                    // Compute the edit distance
-                    const uint_fast32_t distance = edit_distance(messages[i], contentVec);
-
-                    // Iteratively try to find the closest match.  This unfortunately involves iterating through all messages
-                    if (distance < leastDistance)
-                    {
-                        leastDistance = distance;
-                        closestMatch = 1.0 - (static_cast<double>(distance) / static_cast<double>(contentVec.size()));
-                        matchIndex = i;
-                    }
-                } else
-                {
-                    // If we're looking for equality, we just need equality
-                    if (hashes[i] == contentHash)
-                    {
-                        // Set closestMatch to be pct to instantly pass the later check
-                        closestMatch = pct;
-                        matchIndex = i;
-
-                        // Because we need equality, the first match is good enough
-                        break;
-                    }
-                }
-            }
-
-            if (closestMatch >= pct)
-            {
-                slices[currentSlice][matchIndex] += 1;
-            } else
-            {
-                slices[currentSlice][messages.size()] += 1;
-                messages.push_back(contentVec);
-                hashes.push_back(Hash(contentVec));
+                std::cerr << "Could not open " << filename << std::endl;
             }
         }
     }
+
+    pcre_free_study(study);
+    pcre_free(re);
 
     switch (output)
     {
@@ -391,16 +319,26 @@ int main(int argc, char **argv)
 
                 std::map<uint_fast16_t, uint_fast32_t> &slice = slices[latestSlice];
 
+                std::vector<std::string> outputList;
+
                 uint_fast32_t total = 0;
                 for (uint_fast32_t i = 0; i < messages.size(); ++i)
                 {
                     if (slice[i] >= minimum)
                     {
+                        std::ostringstream entry;
                         total += slice[i];
                         std::vector<std::string> &message = messages[i];
-                        std::cout << Join(message, " ") << ":\n";
-                        std::cout << "\t" << slice[i] << "\n\n";
+                        entry << Join(message, " ") << ":\n";
+                        entry << "\t" << slice[i] << "\n\n";
+                        outputList.push_back(entry.str());
                     }
+                }
+                std::sort(outputList.rbegin(), outputList.rend());
+
+                for (std::vector<std::string>::const_iterator it = outputList.begin(); it != outputList.end(); ++it)
+                {
+                    std::cout << *it;
                 }
 
                 std::cout << "TOTAL:\n";
@@ -416,19 +354,23 @@ int main(int argc, char **argv)
 void Usage(const std::string &progName)
 {
     std::cout << "USAGE:" << '\n'
-        << '\t' << progName << " [options...]" << '\n'
-        << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
-        << "\t\t-o [type]\t" << "Output type.  CSV is default.  Options: Report, CSV" << '\n'
-        << "\t\t-m [minimum]\t" << "Minimum matches needed for Report.  Default is 1." << '\n'
-        << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
+        << '\t' << progName << " [options...] [files...]" << '\n'
+        << "\n\t" << "Processes and provides frequency analysis of log files.  Optionally" << '\n'
+        << "\t" << "provides a specific matching percentage for approximate message matching," << '\n'
+        << "\t" << "with hashing optimization for exact matching." << "\n\n"
         << "\t\t-f [format]\t" << "Time formatter. Default is \"%F %T\"" << '\n'
+        << "\t\t-h\t" << "Show this help menu." << '\n'
+        << "\t\t-m [minimum]\t" << "Minimum matches needed for Report.  Default is 1." << '\n'
+        << "\t\t-o [type]\t" << "Output type." << '\n'
+        << "\t\t\tCSV\t" << "Comma-separated value output, for spreadsheets" << '\n'
+        << "\t\t\tReport\t" << "Report output, intended for email.  Only gives the last slice" << '\n'
+        << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
         << "\t\t-r [pattern]\t" << "PCRE regex pattern, used in conjunction with -R to warp input to a proper format.  Default is \"^.+$\"" << '\n'
         << "\t\t-R [replace]\t" << "Regex replacement, $$ is a literal dollar sign, and ${n} inserts the n'th capture group. \"${0}\" is default" << '\n'
-        << "\t\t-h\t" << "Show this help menu." << '\n'
+        << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
         << '\n'
         << "\t\t" << "Takes messages from standard input (order is unimportant)." << '\n'
-        << "\t\t" << "Outputs csv to standard output." << '\n'
-        << "\t\t" << "This expects to find the timestamp first.  If it is not first, use sed/awk or something to fix it." << std::endl;
+        << "\t\t" << "This expects to find the timestamp first.  If it is not first, use the regex patterns to put it first." << std::endl;
 }
 
 template <typename T>
@@ -476,4 +418,116 @@ size_t Hash(const std::vector<std::string>& vec)
         seed ^= Hash(vec[i]) + 0x9e3779b9 + (seed<<6) + (seed>>2);
     }
     return seed;
+}
+
+void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> &ovector, const std::vector<std::string> &replaceparts, const std::vector<long> &replacerefs, time_t &currentSlice, const time_t timeSliceSize, std::vector<size_t> &hashes, std::vector<std::vector<std::string> > &messages, std::map<time_t, std::map<uint_fast16_t, uint_fast32_t> > &slices, const std::string &timeFormatter, double pct)
+{
+    // Try to match the pattern.  If it's found, do the replace.
+    int rc = pcre_exec(re, study, line.data(), line.length(), 0, 0, ovector.data(), ovector.size());
+    if (rc > 0)
+    {
+        std::stringstream lineBuild;
+
+        for (unsigned int i = 0; i < replacerefs.size(); ++i)
+        {
+            const int replaceref = replacerefs[i];
+
+            // Ovector is interleaved in pairs
+            const int start = ovector[replaceref * 2];
+            const int end = ovector[(replaceref * 2) + 1];
+
+            lineBuild << replaceparts[i] << line.substr(start, end - start);
+        }
+
+        lineBuild << replaceparts.back();
+        line.assign(lineBuild.str());
+    }
+
+    // Rip the format off the beginning
+    tm time;
+    memset(&time, '\0', sizeof(time));
+    const char * format = strptime(line.c_str(), timeFormatter.c_str(), &time);
+    // Determine DST automatically
+    time.tm_isdst = -1;
+
+    // Skip the line if the format is not found
+    if (format)
+    {
+        const time_t timestamp = mktime(&time);
+
+        if (currentSlice == 0.0)
+        {
+            currentSlice = timestamp;
+        } else
+        {
+            while (timestamp < currentSlice)
+            {
+                currentSlice -= timeSliceSize;
+            }
+            while ((timestamp - currentSlice) >= timeSliceSize)
+            {
+                currentSlice += timeSliceSize;
+            }
+        }
+
+        //std::istringstream contentSS(format);
+        std::istringstream contentSS;
+
+        contentSS.str(format);
+
+        // Break down contentVec into its parts
+        std::vector<std::string> contentVec;
+        while (!contentSS.eof())
+        {
+            std::string item;
+            contentSS >> item;
+            contentVec.push_back(item);
+        }
+
+        uint_fast16_t leastDistance = contentVec.size();
+        double closestMatch = 0.0;
+        uint_fast32_t matchIndex = 0;
+        size_t contentHash = Hash(contentVec);
+
+        // Iterate through existing messages
+        for (uint_fast32_t i = 0; i < messages.size(); ++i)
+        {
+            // If we aren't checking for exact equality
+            if (pct < 0.99)
+            {
+                // Compute the edit distance
+                const uint_fast32_t distance = edit_distance(messages[i], contentVec);
+
+                // Iteratively try to find the closest match.  This unfortunately involves iterating through all messages
+                if (distance < leastDistance)
+                {
+                    leastDistance = distance;
+                    closestMatch = 1.0 - (static_cast<double>(distance) / static_cast<double>(contentVec.size()));
+                    matchIndex = i;
+                }
+            } else
+            {
+                // If we're looking for equality, we just need equality
+                if (hashes[i] == contentHash)
+                {
+                    // Set closestMatch to be pct to instantly pass the later check
+                    closestMatch = pct;
+                    matchIndex = i;
+
+                    // Because we need equality, the first match is good enough
+                    break;
+                }
+            }
+        }
+
+        if (closestMatch >= pct)
+        {
+            slices[currentSlice][matchIndex] += 1;
+        } else
+        {
+            slices[currentSlice][messages.size()] += 1;
+            messages.push_back(contentVec);
+            hashes.push_back(Hash(contentVec));
+        }
+    }
 }

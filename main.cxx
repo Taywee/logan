@@ -9,6 +9,7 @@
 #include <cctype>
 #include <stdint.h>
 #include <cstdlib>
+#include <cstdio>
 #include <unistd.h>
 #include <cstring>
 #include <pcre.h>
@@ -354,24 +355,23 @@ int main(int argc, char **argv)
 
 void Usage(const std::string &progName)
 {
-    std::cout << "USAGE:" << '\n'
-        << '\t' << progName << " [options...] [files...]" << '\n'
-        << "\n\t" << "Processes and provides frequency analysis of log files.  Optionally" << '\n'
-        << "\t" << "provides a specific matching percentage for approximate message matching," << '\n'
-        << "\t" << "with hashing optimization for exact matching." << "\n\n"
-        << "\t\t-f [format]\t" << "Time formatter. Default is \"%F %T\"" << '\n'
-        << "\t\t-h\t" << "Show this help menu." << '\n'
-        << "\t\t-m [minimum]\t" << "Minimum matches needed for Report.  Default is 1." << '\n'
-        << "\t\t-o [type]\t" << "Output type." << '\n'
-        << "\t\t\tCSV\t" << "Comma-separated value output, for spreadsheets" << '\n'
-        << "\t\t\tReport\t" << "Report output, intended for email.  Only gives the last slice" << '\n'
-        << "\t\t-p ##\t" << "pct match required (in a ratio 0 < p < 1).  Default is 0.8" << '\n'
-        << "\t\t-r [pattern]\t" << "PCRE regex pattern, used in conjunction with -R to warp input to a proper format.  Default is \"^.+$\"" << '\n'
-        << "\t\t-R [replace]\t" << "Regex replacement, $$ is a literal dollar sign, and ${n} inserts the n'th capture group. \"${0}\" is default" << '\n'
-        << "\t\t-s ##\t" << "Slice size in minutes.  Default 30" << '\n'
-        << '\n'
-        << "\t\t" << "Takes messages from standard input (order is unimportant)." << '\n'
-        << "\t\t" << "This expects to find the timestamp first.  If it is not first, use the regex patterns to put it first." << std::endl;
+    std::cout << progName.c_str() << ":\n";
+    std::cout << 
+        "\tProcesses and provides frequency analysis of log files.  Optionally provides a specific matching percentage for approximate message matching, with hashing optimization for exact matching.\n\n"
+
+        "\tTakes messages from standard input (order is unimportant, though the first timestamp determines the alignment of time slices).\n"
+        "\tThis expects to find the timestamp first.  If it is not first, use the regex patterns to put it first.\n\n"
+
+        "\tOutput may be CSV (default), or Report (for emails).\n\n"
+
+        "\t-f [format]     Time formatter. Default is \"%F %T\"\n"
+        "\t-h              Show this help menu.\n"
+        "\t-m [minimum]    Minimum matches needed for Report.  Default is 1.\n"
+        "\t-o [type]       Output type.\n"
+        "\t-p [ratio]      pct match required (in a ratio 0 < p < 1).  Default is 0.8.\n"
+        "\t-r [pattern]    PCRE regex pattern, used in conjunction with -R to warp input to a proper format.  Default is \"^.+$\"\n"
+        "\t-R [replace]    Regex replacement, $$ is a literal dollar sign, and ${n} inserts the n'th capture group. \"${0}\" is default\n"
+        "\t-s [minutes]    Slice size in minutes.  Default is 30.\n";
 }
 
 template <typename T>

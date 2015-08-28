@@ -1,7 +1,7 @@
 CC=gcc
 CXX=g++
 DEFINES=
-CFLAGS=-c -O2
+CFLAGS=-c -O2 -MMD
 LDFLAGS=-s -lpcre
 SOURCES=main.cxx
 OBJECTS=$(SOURCES:.cxx=.o)

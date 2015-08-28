@@ -1,36 +1,24 @@
-build = Release
-objects = main.o
-CC = g
-CXX = g++
+CC=gcc
+CXX=g++
+DEFINES=
+CFLAGS=-c -O2
+LDFLAGS=-s -lpcre
+SOURCES=main.cxx
+OBJECTS=$(SOURCES:.cxx=.o)
+DEPENDENCIES=$(SOURCES:.cxx=.d)
+EXECUTABLE=logan
 
-commonDebugOpts = -ggdb -O0 -DDEBUG
-commonReleaseOpts = -s -O3
-commonOpts = -Wall -Wextra
-commonOpts += $(commonOptsAll) $(common$(build)Opts)
+.PHONY: all clean
 
-compileOptsRelease =
-compileOptsDebug =
-compileOpts = -c `pcre-config --cflags`
-compileOpts += $(commonOpts) $(compileOptsAll) $(compileOpts$(build))
+all: $(EXECUTABLE)
 
-linkerOptsRelease =
-linkerOptsDebug =
-linkerOpts = /usr/lib/libpcre.a
-linkerOpts += $(commonOpts) $(linkerOptsAll) $(linkerOpts$(build))
+-include $(DEPENDENCIES)
 
-compile = $(CXX) $(compileOpts)
-link = $(CXX) $(linkerOpts)
-
-
-.PHONY : all clean
-
-all : logan
+$(EXECUTABLE): $(OBJECTS)
+	$(CXX) $(LDFLAGS) $(OBJECTS) -o $@
 
 clean :
-	-rm -v logan $(objects)
+	rm $(EXECUTABLE) $(OBJECTS) $(DEPENDENCIES)
 
-logan : $(objects)
-	$(CXX) -o logan $(objects) $(linkerOpts)
-
-main.o : main.cxx distance.hxx
-	$(compile) -o main.o main.cxx 
+%.o: %.cxx
+	$(CXX) $(CFLAGS) $(DEFINES) $< -o $@

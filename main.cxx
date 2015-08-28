@@ -459,6 +459,7 @@ void CheckLine(pcre *re, pcre_extra *study, std::string &line, std::vector<int> 
         if (currentSlice == 0.0)
         {
             currentSlice = timestamp;
+            latestSlice = currentSlice;
         } else
         {
             while (timestamp < currentSlice)
